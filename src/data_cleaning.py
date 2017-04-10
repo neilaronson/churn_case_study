@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import scale
 
 class DataCleaning(object):
 
@@ -75,13 +75,14 @@ class DataCleaning(object):
         for column in ['city', 'phone']:
             self.dummify(column)
 
-        y = self.df.pop('Churn')
-
-        X = self.df.values
+        y = self.df.pop('Churn').values
+        X = self.df
 
         if regression:
             self.drop_columns_for_regression()
-            ss = StandardScaler()
-            X = ss.fit_transform(X)
+            for col in ['avg_dist', 'avg_rating_by_driver', 'avg_surge', 'surge_pct', 'trips_in_first_30_days', 'weekday_pct']:
+                X[col] = scale(X[col])
+
+        X = self.df.values
 
         return X, y
