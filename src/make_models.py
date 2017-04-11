@@ -1,10 +1,11 @@
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from data_cleaning import DataCleaning
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.metrics import f1_score
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 
 
 class Pipeline(object):
@@ -21,8 +22,7 @@ class Pipeline(object):
 
             self.get_variable_imp(model, feature_names)
 
-            predicted_probs = model.predict_proba(X_data)[:,1]
-            roc_curve(predicted_probs, y_data)
+
 
     def get_variable_imp(self, model, feature_names):
         if (str(model)).startswith('RandomForestClassifier') or (str(model)).startswith('GradientBoostingClassifier'):
@@ -66,7 +66,6 @@ class Pipeline(object):
 def plot_feature_importance(feature_names, feature_importances):
     feature_names = np.array(feature_names)
     top10_nx = np.argsort(feature_importances)[0:10]
-    #import ipdb; ipdb.set_trace()
     feat_import = feature_importances[top10_nx] # now sorted
     feat_import = feat_import / feat_import.max()
     feature_names = feature_names[top10_nx]
@@ -77,7 +76,7 @@ def plot_feature_importance(feature_names, feature_importances):
     plt.yticks(x_ind, feature_names[x_ind])
     plt.show()
 
-def roc_curve(probabilities, labels):
+def roc_curve(probabilities, labels, model_name):
     '''
     INPUT: numpy array, numpy array
     OUTPUT: list, list, list
@@ -113,10 +112,26 @@ def roc_curve(probabilities, labels):
     tpr = TPRS[sorted_probs_i]
     fpr = FPRS[sorted_probs_i]
 
-    plt.plot(fpr, tpr)
+    plt.plot(fpr, tpr, label=model_name)
+
+
+
+def plot_rocs(pipes, datasets):
+    for pipe_set in zip(pipes, datasets):
+        pipe = pipe_set[0]
+        X = pipe_set[1][0]
+        y = pipe_set[1][1]
+        for model in pipe.list_of_models:
+            X_train, X_test, y_train, y_test = train_test_split(X, y)
+            model.fit(X_train, y_train)
+            predicted_probs = model.predict_proba(X_test)[:,1]
+            p = re.compile(r"(.*)\(.*")
+            model_name = re.match(p, str(model)).group(1)
+            roc_curve(predicted_probs, y_test, model_name)
     plt.xlabel("False Positive Rate (1 - Specificity)")
     plt.ylabel("True Positive Rate (Sensitivity, Recall)")
     plt.title("ROC plot")
+    plt.legend(loc='lower right')
     plt.show()
 
 
@@ -131,12 +146,8 @@ def main():
     X_train_reg, y_train_reg = dc_train_reg.clean(regression=True)
     X_test_reg, y_test_reg = dc_test_reg.clean(regression=True)
 
-
     train_col_names = dc_train.get_column_names()
-
-
-
-
+    train_col_names_reg = dc_train_reg.get_column_names()
 
     rf = RandomForestClassifier(n_estimators=10)
     gb = GradientBoostingClassifier()
@@ -148,9 +159,9 @@ def main():
 
     pipe2 = Pipeline([logr])
     pipe2.fit_predict(X_train_reg, y_train_reg)
-    pipe2.print_cv_results(train_col_names, X_train_reg, y_train_reg)
+    pipe2.print_cv_results(train_col_names_reg, X_train_reg, y_train_reg)
 
-    import ipdb; ipdb.set_trace()
+    plot_rocs([pipe, pipe2], [[X_train, y_train], [X_train_reg, y_train_reg]])
 
     test_scores = pipe.score(X_test, y_test)
     #print test_scores
