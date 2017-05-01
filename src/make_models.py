@@ -57,8 +57,7 @@ class Pipeline(object):
             grid = GridSearchCV(model(), tuning_params, cv=5, scoring='f1_macro')
             grid.fit(x_data, y_data)
             params = grid.best_params_
-            trained_model = model(**params)
-            trained_model.fit(x_data, y_data)
+            trained_model = grid.best_estimator_
             self.trained_models.append(trained_model)
             p = re.compile(r"(.*)\(.*")
             model_name = re.match(p, str(trained_model)).group(1)
