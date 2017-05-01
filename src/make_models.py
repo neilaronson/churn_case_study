@@ -1,7 +1,7 @@
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from data_cleaning import DataCleaning
-from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV
 from sklearn.metrics import f1_score
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,12 +9,18 @@ import re
 
 
 class Pipeline(object):
+    """This pipeline object takes in cleaned data and provides methods necessary to train and predict
+    multiple types of models"""
 
     def __init__(self, list_of_models):
+        """Args:
+                list_of_models (list): contains instantiated sklearn models
+        """
         self.list_of_models = list_of_models
+        self.trained_models = []
 
     def print_cv_results(self, feature_names, X_data, y_data):
-        for i, model in enumerate(self.list_of_models):
+        for i, model in enumerate(self.trained_models):
             print "Model: ", model
             print "F1 score: ", self.f1_scores[i]
             print "recall score: ", self.recall_scores[i]
@@ -44,13 +50,26 @@ class Pipeline(object):
 
     def train(self, x_data, y_data):
         for model in self.list_of_models:
-            model.fit(x_data, y_data)
+            if str(model()).startswith("LogisticRegression"):
+                tuning_params = [{'C': [1, 10, 100, 100000]}]
+            elif (str(model())).startswith('RandomForestClassifier') or (str(model)).startswith('GradientBoostingClassifier'):
+                tuning_params = [{'max_depth': [2, 3, 5]}]
+            grid = GridSearchCV(model(), tuning_params, cv=5, scoring='f1_macro')
+            grid.fit(x_data, y_data)
+            params = grid.best_params_
+            trained_model = model(**params)
+            trained_model.fit(x_data, y_data)
+            self.trained_models.append(trained_model)
+            p = re.compile(r"(.*)\(.*")
+            model_name = re.match(p, str(trained_model)).group(1)
+            print "for {} model, best parameters were: {}".format(model_name, params)
+
 
     def predict_and_cv_score(self, x_data, y_data):
         f1_scores = []
         recall_scores = []
         precision_scores = []
-        for model in self.list_of_models:
+        for model in self.trained_models:
             f1_scores.append(cross_val_score(model, x_data, y_data, scoring='f1').mean())
             recall_scores.append(cross_val_score(model, x_data, y_data, scoring='recall').mean())
             precision_scores.append(cross_val_score(model, x_data, y_data, scoring='f1').mean())
@@ -58,7 +77,7 @@ class Pipeline(object):
 
     def score(self, x_test, y_test):
         scores = []
-        for model in self.list_of_models:
+        for model in self.trained_models:
             predictions = model.predict(x_test)
             scores.append(f1_score(y_test, predictions))
         return scores
@@ -121,7 +140,7 @@ def plot_rocs(pipes, datasets):
         pipe = pipe_set[0]
         X = pipe_set[1][0]
         y = pipe_set[1][1]
-        for model in pipe.list_of_models:
+        for model in pipe.trained_models:
             X_train, X_test, y_train, y_test = train_test_split(X, y)
             model.fit(X_train, y_train)
             predicted_probs = model.predict_proba(X_test)[:,1]
@@ -149,9 +168,9 @@ def main():
     train_col_names = dc_train.get_column_names()
     train_col_names_reg = dc_train_reg.get_column_names()
 
-    rf = RandomForestClassifier(n_estimators=10)
-    gb = GradientBoostingClassifier()
-    logr = LogisticRegression(C=100000)
+    rf = RandomForestClassifier
+    gb = GradientBoostingClassifier
+    logr = LogisticRegression
 
     pipe = Pipeline([rf, gb])
     pipe.fit_predict(X_train, y_train)
