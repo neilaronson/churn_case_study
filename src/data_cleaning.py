@@ -5,17 +5,13 @@ from sklearn.preprocessing import scale
 class DataCleaning(object):
     """An object to clean and wrangle data into format for a model"""
 
-    def __init__(self, instance='training'):
+    def __init__(self, filepath):
         """Reads in data
 
         Args:
-            instance (str): whether we are working with training data (default)
-            or test data (set instance to be any other string to go into test mode)
+            fileapth (str): location of file with csv data
         """
-        if instance == 'training':
-            self.df = pd.read_csv('../data/churn_train.csv')
-        else:
-            self.df = pd.read_csv('../data/churn_test.csv')
+        self.df = pd.read_csv(filepath)
 
     def make_target_variable(self):
         """Create the churn column, which is our target variable y that we are trying to predict
