@@ -10,16 +10,18 @@ import re
 
 class Pipeline(object):
     """This pipeline object takes in cleaned data and provides methods necessary to train and predict
-    multiple types of models"""
+    multiple types of models. The goal is to make a clean, customizable interface for comparing models"""
 
     def __init__(self, list_of_models):
         """Args:
-                list_of_models (list): contains instantiated sklearn models
+                list_of_models (list): contains uninstantiated sklearn models to be tried
         """
         self.list_of_models = list_of_models
         self.trained_models = []
 
     def print_cv_results(self, feature_names, X_data, y_data):
+        """Prints out the cross-validated estimate of test error for f1, recall and precision
+        It also calls the get_variable_imp to report on the variable importance for each model"""
         for i, model in enumerate(self.trained_models):
             print "Model: ", model
             print "F1 score: ", self.f1_scores[i]
@@ -28,9 +30,8 @@ class Pipeline(object):
 
             self.get_variable_imp(model, feature_names)
 
-
-
     def get_variable_imp(self, model, feature_names):
+        """Prints how important each feature is and creates a bar chart showing relative feature importance for each model"""
         if (str(model)).startswith('RandomForestClassifier') or (str(model)).startswith('GradientBoostingClassifier'):
             feat_imps = model.feature_importances_
             for j, importance in enumerate(feat_imps):
@@ -45,10 +46,14 @@ class Pipeline(object):
             plot_feature_importance(feature_names, feat_imps)
 
     def fit_predict(self, x_data, y_data):
+        """This method is meant to be called in main as a one-stop method for fitting
+        the model and generating predictions for cross-validation test error estimation"""
         self.train(x_data, y_data)
         self.f1_scores, self.recall_scores, self.precision_scores = self.predict_and_cv_score(x_data, y_data)
 
     def train(self, x_data, y_data):
+        """Goes through each model in self.list_of_models, finds best hyperparameters, then instantiates each model
+        with its best hyperparameters. It also reports on what these hyperparameters were"""
         for model in self.list_of_models:
             if str(model()).startswith("LogisticRegression"):
                 tuning_params = [{'C': [1, 10, 100, 100000]}]
@@ -63,8 +68,8 @@ class Pipeline(object):
             model_name = re.match(p, str(trained_model)).group(1)
             print "for {} model, best parameters were: {}".format(model_name, params)
 
-
     def predict_and_cv_score(self, x_data, y_data):
+        """Used by fit_predict to return model evaluation metrics through cross-validation"""
         f1_scores = []
         recall_scores = []
         precision_scores = []
@@ -75,6 +80,8 @@ class Pipeline(object):
         return f1_scores, recall_scores, precision_scores
 
     def score(self, x_test, y_test):
+        """This score function is meant to be used only for test data. One best hyperparameters
+        are chosen through CV, use this method to get actual test error"""
         scores = []
         for model in self.trained_models:
             predictions = model.predict(x_test)
@@ -82,6 +89,9 @@ class Pipeline(object):
         return scores
 
 def plot_feature_importance(feature_names, feature_importances):
+    """Plots the top 10 feature importances for each model. For tree-based models, this is done
+    with sklearn's feature_importances_ attribute. For logistic regression, it is the normalized
+    coefficients"""
     feature_names = np.array(feature_names)
     top10_nx = np.argsort(feature_importances)[0:10]
     feat_import = feature_importances[top10_nx] # now sorted
@@ -132,9 +142,8 @@ def roc_curve(probabilities, labels, model_name):
 
     plt.plot(fpr, tpr, label=model_name)
 
-
-
 def plot_rocs(pipes, datasets):
+    """Plot roc curves for all fitted models in multiple pipelines together on the same graph to compare"""
     for pipe_set in zip(pipes, datasets):
         pipe = pipe_set[0]
         X = pipe_set[1][0]
@@ -154,13 +163,15 @@ def plot_rocs(pipes, datasets):
 
 
 def main():
-    dc_train = DataCleaning(instance='training')
-    dc_test = DataCleaning(instance='test')
+    train_path = "../data/churn_train.csv"
+    test_path = "../data/churn_test.csv"
+    dc_train = DataCleaning(train_path)
+    dc_test = DataCleaning(test_path)
     X_train, y_train = dc_train.clean()
     X_test, y_test = dc_test.clean()
 
-    dc_train_reg = DataCleaning(instance='training')
-    dc_test_reg = DataCleaning(instance='test')
+    dc_train_reg = DataCleaning(train_path)
+    dc_test_reg = DataCleaning(test_path)
     X_train_reg, y_train_reg = dc_train_reg.clean(regression=True)
     X_test_reg, y_test_reg = dc_test_reg.clean(regression=True)
 
@@ -183,9 +194,6 @@ def main():
 
     test_scores = pipe.score(X_test, y_test)
     #print test_scores
-
-
-
 
 if __name__ == '__main__':
     main()
